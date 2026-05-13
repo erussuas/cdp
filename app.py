@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-APP_VERSION = "0.1.1"
+APP_VERSION = "0.1.2"
 SCORING_VERSION = "CDP_2026_Readiness_v1"
 
 CDP_MILESTONES = pd.DataFrame([
@@ -89,23 +89,52 @@ STATUS_OPTIONS = ["Not assessed", "Not Started", "In Progress", "Blocked", "Comp
 TASK_STATUS_OPTIONS = ["Not Started", "In Progress", "Blocked", "Complete", "Deferred"]
 PRIORITY_OPTIONS = ["High", "Medium", "Low"]
 RISK_OPTIONS = ["High", "Medium", "Low"]
+SCORE_OPTIONS = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+
+PROFILE_PLACEHOLDERS = {
+    "Client Name": "Enter company / client name",
+    "Reporting Year End": "YYYY-MM-DD, e.g., 2025-12-31",
+    "Primary Sector": "e.g., Manufacturing",
+    "Reporting Themes": "e.g., Climate Change, Water, Forests",
+    "Currency": "e.g., USD",
+    "Assessment Date": "YYYY-MM-DD",
+    "Consultant / Team": "Enter consultant or team name",
+}
 
 
 def init_state():
     if "client_profile" not in st.session_state:
         st.session_state.client_profile = {
-            "Client Name": "Example Client",
-            "Reporting Year End": "2025-12-31",
-            "Primary Sector": "Manufacturing",
-            "Reporting Themes": "Climate Change",
-            "Currency": "USD",
+            "Client Name": "",
+            "Reporting Year End": "",
+            "Primary Sector": "",
+            "Reporting Themes": "",
+            "Currency": "",
             "Assessment Date": str(date.today()),
             "Consultant / Team": "",
         }
     if "assessment" not in st.session_state:
-        st.session_state.assessment = ASSESSMENT_TEMPLATE.copy()
+        st.session_state.assessment = normalize_assessment(ASSESSMENT_TEMPLATE.copy())
     if "tasks" not in st.session_state:
         st.session_state.tasks = normalize_tasks(TASK_TEMPLATE.copy())
+
+
+def normalize_assessment(assessment: pd.DataFrame) -> pd.DataFrame:
+    """Keep assessment data stable across Streamlit reruns and Excel imports."""
+    a = assessment.copy()
+    for col in ASSESSMENT_TEMPLATE.columns:
+        if col not in a.columns:
+            a[col] = ASSESSMENT_TEMPLATE[col].iloc[0] if len(ASSESSMENT_TEMPLATE) else ""
+    a = a[list(ASSESSMENT_TEMPLATE.columns)]
+    a["Weight"] = pd.to_numeric(a["Weight"], errors="coerce").fillna(1.0)
+    a["Score (0-5)"] = pd.to_numeric(a["Score (0-5)"], errors="coerce").fillna(0).clip(0, 5)
+    # Snap imported/freeform scores to the supported dropdown values.
+    a["Score (0-5)"] = (a["Score (0-5)"] * 2).round() / 2
+    for col in ["Domain", "Assessment Item", "Readiness Question", "Scoring Risk", "Default Owner", "Evidence Needed", "Status", "Owner", "Comments / Notes", "Recommended Action"]:
+        a[col] = a[col].fillna("").astype(str)
+    a.loc[~a["Status"].isin(STATUS_OPTIONS), "Status"] = "Not assessed"
+    a.loc[~a["Scoring Risk"].isin(RISK_OPTIONS), "Scoring Risk"] = "Medium"
+    return a
 
 
 def normalize_tasks(tasks: pd.DataFrame) -> pd.DataFrame:
@@ -145,6 +174,7 @@ def load_workbook(uploaded_file) -> Tuple[Dict, pd.DataFrame, pd.DataFrame]:
             if col not in a.columns:
                 a[col] = assessment[col].iloc[0] if len(assessment) else ""
         assessment = a[assessment.columns]
+    assessment = normalize_assessment(assessment)
     tasks = TASK_TEMPLATE.copy()
     if "Tasks" in xls.sheet_names:
         t = pd.read_excel(xls, "Tasks")
@@ -256,7 +286,7 @@ def main():
             except Exception as e:
                 st.error(f"Could not load workbook: {e}")
         if st.button("Reset to blank template"):
-            st.session_state.assessment = ASSESSMENT_TEMPLATE.copy()
+            st.session_state.assessment = normalize_assessment(ASSESSMENT_TEMPLATE.copy())
             st.session_state.tasks = normalize_tasks(TASK_TEMPLATE.copy())
             st.success("Template reset.")
 
@@ -273,24 +303,32 @@ def main():
         p = st.session_state.client_profile.copy()
         cols = st.columns(2)
         for idx, key in enumerate(list(p.keys())):
-            p[key] = cols[idx % 2].text_input(key, value=str(p[key]))
+            current_value = "" if pd.isna(p[key]) else str(p[key])
+            p[key] = cols[idx % 2].text_input(
+                key,
+                value=current_value,
+                placeholder=PROFILE_PLACEHOLDERS.get(key, "Enter value"),
+                key=f"profile_{key}",
+            )
         st.session_state.client_profile = p
         st.info("This profile is exported to Excel and reloaded in future sessions.")
 
     with tabs[1]:
         st.subheader("Readiness Assessment")
         st.write("Score each item from 0 to 5. Use evidence and notes fields to capture the basis for the assessment.")
+        st.session_state.assessment = normalize_assessment(st.session_state.assessment)
         edited = st.data_editor(
             st.session_state.assessment,
             num_rows="dynamic",
             use_container_width=True,
+            key="assessment_editor",
             column_config={
-                "Score (0-5)": st.column_config.NumberColumn(min_value=0, max_value=5, step=0.5),
-                "Status": st.column_config.SelectboxColumn(options=STATUS_OPTIONS),
-                "Scoring Risk": st.column_config.SelectboxColumn(options=RISK_OPTIONS),
+                "Score (0-5)": st.column_config.SelectboxColumn(options=SCORE_OPTIONS, required=True),
+                "Status": st.column_config.SelectboxColumn(options=STATUS_OPTIONS, required=True),
+                "Scoring Risk": st.column_config.SelectboxColumn(options=RISK_OPTIONS, required=True),
             },
         )
-        st.session_state.assessment = edited
+        st.session_state.assessment = normalize_assessment(edited)
 
     with tabs[2]:
         st.subheader("Visual Scorecard")
@@ -322,6 +360,7 @@ def main():
             st.session_state.tasks,
             num_rows="dynamic",
             use_container_width=True,
+            key="tasks_editor",
             column_config={
                 "Start Date": st.column_config.DateColumn(),
                 "Due Date": st.column_config.DateColumn(),
@@ -339,7 +378,18 @@ def main():
             fig = px.timeline(gantt, x_start="Start Date", x_end="Due Date", y="Task Name", color="Status", hover_data=["Owner", "Priority", "CDP Milestone", "Dependencies", "% Complete"])
             fig.update_yaxes(autorange="reversed")
             for _, row in CDP_MILESTONES.iterrows():
-                fig.add_vline(x=row["Date"], line_dash="dash", annotation_text=row["Milestone"], annotation_position="top")
+                milestone_date = pd.to_datetime(row["Date"]).strftime("%Y-%m-%d")
+                fig.add_vline(x=milestone_date, line_dash="dash")
+                fig.add_annotation(
+                    x=milestone_date,
+                    y=1,
+                    yref="paper",
+                    text=str(row["Milestone"]),
+                    showarrow=False,
+                    textangle=-45,
+                    yanchor="bottom",
+                    font=dict(size=10),
+                )
             st.plotly_chart(fig, use_container_width=True)
 
     with tabs[4]:
