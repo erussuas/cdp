@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.1.1"
 SCORING_VERSION = "CDP_2026_Readiness_v1"
 
 CDP_MILESTONES = pd.DataFrame([
@@ -105,7 +105,30 @@ def init_state():
     if "assessment" not in st.session_state:
         st.session_state.assessment = ASSESSMENT_TEMPLATE.copy()
     if "tasks" not in st.session_state:
-        st.session_state.tasks = TASK_TEMPLATE.copy()
+        st.session_state.tasks = normalize_tasks(TASK_TEMPLATE.copy())
+
+
+def normalize_tasks(tasks: pd.DataFrame) -> pd.DataFrame:
+    """Coerce task columns to Streamlit-compatible types before editing/charting.
+
+    Streamlit's DateColumn is strict: object/string columns can trigger
+    _check_type_compatibilities errors on Streamlit Cloud. Keep dates as
+    pandas datetime64[ns] in session state and exports.
+    """
+    t = tasks.copy()
+    for col in TASK_TEMPLATE.columns:
+        if col not in t.columns:
+            t[col] = TASK_TEMPLATE[col].iloc[0] if len(TASK_TEMPLATE) else ""
+    t = t[list(TASK_TEMPLATE.columns)]
+    for col in ["Start Date", "Due Date"]:
+        t[col] = pd.to_datetime(t[col], errors="coerce")
+    t["% Complete"] = pd.to_numeric(t["% Complete"], errors="coerce").fillna(0).clip(0, 100)
+    for col in ["Task ID", "Workstream", "Task Name", "Owner", "Priority", "Status", "CDP Milestone", "Dependencies", "Comments / Notes"]:
+        t[col] = t[col].fillna("").astype(str)
+    # Keep default selectbox values valid for blank/new rows.
+    t.loc[~t["Status"].isin(TASK_STATUS_OPTIONS), "Status"] = "Not Started"
+    t.loc[~t["Priority"].isin(PRIORITY_OPTIONS), "Priority"] = "Medium"
+    return t
 
 
 def load_workbook(uploaded_file) -> Tuple[Dict, pd.DataFrame, pd.DataFrame]:
@@ -129,6 +152,7 @@ def load_workbook(uploaded_file) -> Tuple[Dict, pd.DataFrame, pd.DataFrame]:
             if col not in t.columns:
                 t[col] = ""
         tasks = t[tasks.columns]
+    tasks = normalize_tasks(tasks)
     return profile, assessment, tasks
 
 
@@ -233,7 +257,7 @@ def main():
                 st.error(f"Could not load workbook: {e}")
         if st.button("Reset to blank template"):
             st.session_state.assessment = ASSESSMENT_TEMPLATE.copy()
-            st.session_state.tasks = TASK_TEMPLATE.copy()
+            st.session_state.tasks = normalize_tasks(TASK_TEMPLATE.copy())
             st.success("Template reset.")
 
         module, kpis = compute_scores(st.session_state.assessment, st.session_state.tasks)
@@ -293,6 +317,7 @@ def main():
 
     with tabs[3]:
         st.subheader("Action Plan & Gantt")
+        st.session_state.tasks = normalize_tasks(st.session_state.tasks)
         tasks = st.data_editor(
             st.session_state.tasks,
             num_rows="dynamic",
@@ -305,8 +330,8 @@ def main():
                 "% Complete": st.column_config.NumberColumn(min_value=0, max_value=100, step=5),
             },
         )
-        st.session_state.tasks = tasks
-        gantt = tasks.copy()
+        st.session_state.tasks = normalize_tasks(tasks)
+        gantt = st.session_state.tasks.copy()
         gantt["Start Date"] = pd.to_datetime(gantt["Start Date"], errors="coerce")
         gantt["Due Date"] = pd.to_datetime(gantt["Due Date"], errors="coerce")
         gantt = gantt.dropna(subset=["Start Date", "Due Date"])
