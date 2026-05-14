@@ -8,8 +8,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-APP_VERSION = "0.1.6"
-SCORING_VERSION = "CDP_2026_Readiness_v2"
+APP_VERSION = "0.1.7"
+SCORING_VERSION = "CDP_2026_Climate_Basic_Simulator_v1"
 
 CDP_MILESTONES = pd.DataFrame([
     {"Milestone": "Questionnaires & guidance published", "Date": "2026-04-20", "Notes": "CDP 2026 questionnaires/guidance publication week"},
@@ -80,17 +80,24 @@ TASK_TEMPLATE = pd.DataFrame([
 
 
 CLIMATE_SCORING_TEMPLATE = pd.DataFrame([
-    ["C0", "Questionnaire setup & boundary", "Reporting period, boundary, currency, countries, identifiers and applicability setup are complete and internally consistent.", 6, 5, 4, 3, 2, "High", "Low", "High", "Uses explicit CDP setup, completion and boundary logic; strong confidence when inputs are known."],
-    ["C1", "Governance", "Board/executive oversight, management accountability, incentives, controls and sign-off process for climate disclosure.", 10, 5, 4, 3, 2, "Medium", "High", "High", "Leadership scoring depends on quality, specificity and evidence of implementation."],
-    ["C2", "Risks & opportunities", "Climate risk/opportunity identification, assessment process, financial impacts, time horizons and management response.", 12, 5, 4, 3, 2, "Medium", "High", "High", "Financial quantification and cross-question consistency are major confidence constraints."],
-    ["C3", "Business strategy & transition plan", "Climate strategy integration, transition plan, scenario analysis, resiliency, targets and progress.", 12, 5, 4, 3, 2, "Medium", "High", "High", "Highly interpretive; needs advisor review for leadership-grade estimate."],
-    ["C4", "Emissions methodology & boundary", "GHG consolidation approach, exclusions, base year, restatement policy and factor governance.", 10, 5, 4, 3, 2, "High", "Medium", "High", "More deterministic if data governance evidence is available."],
-    ["C5", "Scope 1 & Scope 2 inventory", "Complete Scope 1 and 2 emissions, activity data, market/location-based accounting and renewable instrument support.", 14, 5, 4, 3, 2, "High", "Medium", "High", "Confidence improves materially if utility/EAC data and assurance status are known."],
-    ["C6", "Scope 3 inventory", "Scope 3 relevance screening, category calculations, supplier data quality, exclusions and methodology disclosure.", 14, 5, 4, 3, 2, "Medium", "High", "High", "Usually the highest uncertainty area because method quality and category coverage are judgment-heavy."],
-    ["C7", "Targets & performance", "Climate targets, coverage, base year, progress, renewable energy goals, and decarbonization levers.", 10, 5, 4, 3, 2, "Medium", "High", "High", "Target credibility and coverage influence leadership-grade confidence."],
-    ["C8", "Verification & assurance", "Third-party verification/assurance of emissions and relevant climate data.", 6, 5, 4, 3, 2, "High", "Low", "Medium", "Often relatively clear: verified, partially verified, planned, or absent."],
-    ["C9", "Engagement, value chain & public policy", "Supplier/customer engagement, policy engagement, memberships, and climate-related collaboration.", 6, 5, 4, 3, 2, "Medium", "High", "Medium", "Narrative evidence and specificity affect scoring confidence."],
-], columns=["Section ID", "Climate scoring section", "What this tests", "Weight", "Current Quality (0-5)", "Projected Quality (0-5)", "Target Quality (0-5)", "Minimum Gate (0-5)", "Rule Confidence", "Interpretation Risk", "Scoring Impact", "Simulator Notes"])
+    ["C0", "Questionnaire setup & boundary", "Required", "Yes", 6, "Partial", "Adequate", "Partial", "Medium", 0.5, "Disclosure", "High", "Low", "Climate setup answers drive downstream applicability. Boundary, reporting period and currency must be consistent."],
+    ["C1", "Governance", "Required", "Yes", 10, "Partial", "Adequate", "Partial", "Medium", 0.5, "Management", "Medium", "High", "Board/executive oversight and management accountability are scored beyond simple completion."],
+    ["C2", "Risks & opportunities", "Required", "Yes", 12, "Partial", "Adequate", "Partial", "High", 0.5, "Management", "Medium", "High", "Financial impact, time horizons and risk management response are interpretation-heavy."],
+    ["C3", "Strategy & transition plan", "Required", "Yes", 12, "Partial", "Adequate", "Partial", "High", 0.5, "Management", "Medium", "High", "Leadership outcomes usually require credible transition-plan evidence, progress and strategy integration."],
+    ["C4", "Emissions methodology & boundary", "Required", "Yes", 10, "Partial", "Adequate", "Partial", "High", 0.5, "Management", "High", "Medium", "Consolidation approach, exclusions, base year and restatement logic create scoring gates."],
+    ["C5", "Scope 1 & 2 inventory", "Required", "Yes", 14, "Partial", "Adequate", "Partial", "High", 0.5, "Management", "High", "Medium", "Completeness, method, market-based support and evidence drive confidence."],
+    ["C6", "Scope 3 inventory", "Required", "Yes", 14, "Partial", "Adequate", "Partial", "High", 0.5, "Awareness", "Medium", "High", "Category relevance, coverage, supplier data quality and exclusions are often the largest scoring risk."],
+    ["C7", "Targets & performance", "Required", "Yes", 10, "Partial", "Adequate", "Partial", "Medium", 0.5, "Management", "Medium", "High", "Target coverage, progress and decarbonization levers influence leadership readiness."],
+    ["C8", "Verification & assurance", "Important", "Yes", 6, "Missing", "Weak", "Missing", "Medium", 0.5, "Awareness", "High", "Low", "Assurance status is usually clear, but lack of assurance can cap confidence."],
+    ["C9", "Engagement & value chain", "Important", "Yes", 6, "Partial", "Adequate", "Partial", "Medium", 0.5, "Awareness", "Medium", "High", "Supplier/customer engagement and public policy narratives require evidence and specificity."],
+], columns=["Section ID", "Climate scoring section", "Applicability Type", "Applicable?", "Weight", "Current Response Status", "Disclosure Quality", "Evidence Strength", "Consistency Risk", "Action Plan Impact", "Minimum Level Needed", "Rule Confidence", "Interpretation Risk", "Simulator Notes"])
+
+RESPONSE_STATUS_OPTIONS = ["Missing", "Started", "Partial", "Mostly Complete", "Complete", "Not Applicable"]
+DISCLOSURE_QUALITY_OPTIONS = ["Weak", "Adequate", "Strong", "Leadership-ready"]
+EVIDENCE_STRENGTH_OPTIONS = ["Missing", "Partial", "Good", "Verified"]
+CONSISTENCY_RISK_OPTIONS = ["Low", "Medium", "High"]
+SCORING_LEVEL_OPTIONS = ["Disclosure", "Awareness", "Management", "Leadership"]
+APPLICABLE_OPTIONS = ["Yes", "No", "Unclear"]
 
 GRADE_BANDS = [
     (0, 24.99, "D", "Disclosure is likely incomplete or highly inconsistent."),
@@ -190,65 +197,120 @@ def normalize_tasks(tasks: pd.DataFrame) -> pd.DataFrame:
 
 def normalize_climate_simulator(sim: pd.DataFrame) -> pd.DataFrame:
     c = sim.copy()
+    # Backward compatibility with v0.1.6 exports
+    if "Current Quality (0-5)" in c.columns and "Current Response Status" not in c.columns:
+        def quality_to_status(v):
+            try: v = float(v)
+            except Exception: v = 0
+            if v >= 4.5: return "Complete"
+            if v >= 3.5: return "Mostly Complete"
+            if v >= 2: return "Partial"
+            if v > 0: return "Started"
+            return "Missing"
+        c["Current Response Status"] = c["Current Quality (0-5)"].map(quality_to_status)
+    if "Projected Quality (0-5)" in c.columns and "Action Plan Impact" not in c.columns:
+        c["Action Plan Impact"] = (pd.to_numeric(c.get("Projected Quality (0-5)", 0), errors="coerce").fillna(0) - pd.to_numeric(c.get("Current Quality (0-5)", 0), errors="coerce").fillna(0)).clip(0, 2)
+    if "Target Quality (0-5)" in c.columns and "Minimum Level Needed" not in c.columns:
+        c["Minimum Level Needed"] = "Management"
+
     for col in CLIMATE_SCORING_TEMPLATE.columns:
         if col not in c.columns:
             c[col] = CLIMATE_SCORING_TEMPLATE[col].iloc[0] if len(CLIMATE_SCORING_TEMPLATE) else ""
     c = c[list(CLIMATE_SCORING_TEMPLATE.columns)]
-    for col in ["Weight", "Current Quality (0-5)", "Projected Quality (0-5)", "Target Quality (0-5)", "Minimum Gate (0-5)"]:
-        c[col] = pd.to_numeric(c[col], errors="coerce").fillna(0)
-    c["Weight"] = c["Weight"].clip(0, 100)
-    for col in ["Current Quality (0-5)", "Projected Quality (0-5)", "Target Quality (0-5)", "Minimum Gate (0-5)"]:
-        c[col] = ((c[col].clip(0, 5) * 2).round() / 2)
-    for col in ["Section ID", "Climate scoring section", "What this tests", "Rule Confidence", "Interpretation Risk", "Scoring Impact", "Simulator Notes"]:
+    c["Weight"] = pd.to_numeric(c["Weight"], errors="coerce").fillna(0).clip(0, 100)
+    c["Action Plan Impact"] = pd.to_numeric(c["Action Plan Impact"], errors="coerce").fillna(0).clip(0, 2)
+    for col in ["Section ID", "Climate scoring section", "Applicability Type", "Applicable?", "Current Response Status", "Disclosure Quality", "Evidence Strength", "Consistency Risk", "Minimum Level Needed", "Rule Confidence", "Interpretation Risk", "Simulator Notes"]:
         c[col] = c[col].fillna("").astype(str)
+    c.loc[~c["Applicable?"].isin(APPLICABLE_OPTIONS), "Applicable?"] = "Yes"
+    c.loc[~c["Current Response Status"].isin(RESPONSE_STATUS_OPTIONS), "Current Response Status"] = "Partial"
+    c.loc[~c["Disclosure Quality"].isin(DISCLOSURE_QUALITY_OPTIONS), "Disclosure Quality"] = "Adequate"
+    c.loc[~c["Evidence Strength"].isin(EVIDENCE_STRENGTH_OPTIONS), "Evidence Strength"] = "Partial"
+    c.loc[~c["Consistency Risk"].isin(CONSISTENCY_RISK_OPTIONS), "Consistency Risk"] = "Medium"
+    c.loc[~c["Minimum Level Needed"].isin(SCORING_LEVEL_OPTIONS), "Minimum Level Needed"] = "Management"
     c.loc[~c["Rule Confidence"].isin(["High", "Medium", "Low"]), "Rule Confidence"] = "Medium"
     c.loc[~c["Interpretation Risk"].isin(["High", "Medium", "Low"]), "Interpretation Risk"] = "Medium"
-    c.loc[~c["Scoring Impact"].isin(["High", "Medium", "Low"]), "Scoring Impact"] = "Medium"
     return c
 
 
-def estimate_grade(score: float) -> Tuple[str, str]:
-    for low, high, grade, description in GRADE_BANDS:
-        if low <= score <= high:
-            return grade, description
-    return "N/A", "No estimate available."
+def _section_quality_score(row) -> tuple:
+    """Return current/projected score on a 0-5 maturity scale and estimated achieved level."""
+    status_map = {"Missing": 0.0, "Started": 1.0, "Partial": 2.5, "Mostly Complete": 3.8, "Complete": 4.5, "Not Applicable": 0.0}
+    quality_map = {"Weak": 0.5, "Adequate": 2.6, "Strong": 3.8, "Leadership-ready": 4.7}
+    evidence_map = {"Missing": 0.0, "Partial": 2.0, "Good": 3.6, "Verified": 4.7}
+    risk_penalty = {"Low": 0.0, "Medium": 0.35, "High": 0.8}
+    current = (
+        0.45 * status_map.get(str(row.get("Current Response Status")), 0)
+        + 0.35 * quality_map.get(str(row.get("Disclosure Quality")), 0)
+        + 0.20 * evidence_map.get(str(row.get("Evidence Strength")), 0)
+        - risk_penalty.get(str(row.get("Consistency Risk")), 0.35)
+    )
+    current = max(0, min(5, current))
+    projected = max(0, min(5, current + float(row.get("Action Plan Impact", 0) or 0)))
+    def level(score):
+        if score >= 4.25: return "Leadership"
+        if score >= 3.25: return "Management"
+        if score >= 2.0: return "Awareness"
+        if score > 0: return "Disclosure"
+        return "None"
+    return current, projected, level(current), level(projected)
 
 
 def compute_climate_score(sim: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
     c = normalize_climate_simulator(sim)
-    weights = c["Weight"].replace(0, np.nan)
-    total_weight = float(c["Weight"].sum()) if float(c["Weight"].sum()) else 1.0
-    c["Current Weighted Points"] = c["Weight"] * (c["Current Quality (0-5)"] / 5)
-    c["Projected Weighted Points"] = c["Weight"] * (c["Projected Quality (0-5)"] / 5)
-    c["Target Weighted Points"] = c["Weight"] * (c["Target Quality (0-5)"] / 5)
+    applicable = c[c["Applicable?"].isin(["Yes", "Unclear"])].copy()
+    if applicable.empty:
+        c["Current Section Score"] = 0.0
+        c["Projected Section Score"] = 0.0
+        c["Current Level"] = "N/A"
+        c["Projected Level"] = "N/A"
+        return c, {"Current Climate Score Estimate": 0, "Projected Climate Score Estimate": 0, "Current Estimated Band": "N/A", "Projected Estimated Band": "N/A", "Simulator Confidence %": 0, "Gate / Level Gaps": 0, "Excluded Sections": int((c["Applicable?"] == "No").sum())}
+
+    rows = []
+    for _, row in c.iterrows():
+        if str(row["Applicable?"]) == "No":
+            cur = proj = 0.0; cur_level = proj_level = "N/A"
+        else:
+            cur, proj, cur_level, proj_level = _section_quality_score(row)
+        rows.append((cur, proj, cur_level, proj_level))
+    c[["Current Section Score", "Projected Section Score", "Current Level", "Projected Level"]] = pd.DataFrame(rows, index=c.index)
+
+    applicable = c[c["Applicable?"].isin(["Yes", "Unclear"])].copy()
+    total_weight = float(applicable["Weight"].sum()) or 1.0
+    c["Current Weighted Points"] = np.where(c["Applicable?"].isin(["Yes", "Unclear"]), c["Weight"] * c["Current Section Score"] / 5, 0)
+    c["Projected Weighted Points"] = np.where(c["Applicable?"].isin(["Yes", "Unclear"]), c["Weight"] * c["Projected Section Score"] / 5, 0)
+
     current = float(c["Current Weighted Points"].sum() / total_weight * 100)
     projected = float(c["Projected Weighted Points"].sum() / total_weight * 100)
-    target = float(c["Target Weighted Points"].sum() / total_weight * 100)
-    gate_failures = c[c["Current Quality (0-5)"] < c["Minimum Gate (0-5)"]]
-    projected_gate_failures = c[c["Projected Quality (0-5)"] < c["Minimum Gate (0-5)"]]
-    high_impact_gaps = c[(c["Scoring Impact"] == "High") & (c["Current Quality (0-5)"] < c["Target Quality (0-5)"])]
-    avg_conf_map = {"High": 1.0, "Medium": 0.65, "Low": 0.35}
-    risk_map = {"Low": 1.0, "Medium": 0.75, "High": 0.45}
-    confidence_factor = float(np.average(c["Rule Confidence"].map(avg_conf_map), weights=c["Weight"])) if len(c) else 0.5
-    interpretation_factor = float(np.average(c["Interpretation Risk"].map(risk_map), weights=c["Weight"])) if len(c) else 0.5
-    confidence_pct = max(0, min(100, 100 * confidence_factor * interpretation_factor - len(gate_failures) * 2.5))
+
+    level_rank = {"None": 0, "Disclosure": 1, "Awareness": 2, "Management": 3, "Leadership": 4, "N/A": 99}
+    needed_rank = {"Disclosure": 1, "Awareness": 2, "Management": 3, "Leadership": 4}
+    c["Gate / Level Gap"] = c.apply(lambda r: bool(r["Applicable?"] in ["Yes", "Unclear"] and level_rank.get(r["Current Level"], 0) < needed_rank.get(r["Minimum Level Needed"], 3)), axis=1)
+    c["Projected Gate / Level Gap"] = c.apply(lambda r: bool(r["Applicable?"] in ["Yes", "Unclear"] and level_rank.get(r["Projected Level"], 0) < needed_rank.get(r["Minimum Level Needed"], 3)), axis=1)
+    c["Scoring Risk Flag"] = c.apply(lambda r: "High" if r["Gate / Level Gap"] or r["Consistency Risk"] == "High" or r["Interpretation Risk"] == "High" else ("Medium" if r["Applicable?"] == "Unclear" or r["Rule Confidence"] == "Medium" else "Low"), axis=1)
+
+    conf_map = {"High": 1.0, "Medium": 0.7, "Low": 0.4}
+    interp_map = {"Low": 1.0, "Medium": 0.75, "High": 0.5}
+    applicable_weights = applicable["Weight"].replace(0, 1)
+    confidence_factor = float(np.average(applicable["Rule Confidence"].map(conf_map), weights=applicable_weights))
+    interpretation_factor = float(np.average(applicable["Interpretation Risk"].map(interp_map), weights=applicable_weights))
+    unclear_penalty = int((c["Applicable?"] == "Unclear").sum()) * 3
+    gate_penalty = int(c["Gate / Level Gap"].sum()) * 2.5
+    confidence_pct = max(0, min(100, 100 * confidence_factor * interpretation_factor - unclear_penalty - gate_penalty))
+
     current_grade, current_desc = estimate_grade(current)
     projected_grade, projected_desc = estimate_grade(projected)
-    target_grade, target_desc = estimate_grade(target)
     kpis = {
         "Current Climate Score Estimate": round(current, 1),
         "Projected Climate Score Estimate": round(projected, 1),
-        "Target Climate Score Estimate": round(target, 1),
         "Current Estimated Band": current_grade,
         "Projected Estimated Band": projected_grade,
-        "Target Estimated Band": target_grade,
         "Current Band Description": current_desc,
         "Projected Band Description": projected_desc,
-        "Target Band Description": target_desc,
         "Simulator Confidence %": round(confidence_pct, 1),
-        "Current Gate Failures": int(len(gate_failures)),
-        "Projected Gate Failures": int(len(projected_gate_failures)),
-        "High-Impact Scoring Gaps": int(len(high_impact_gaps)),
+        "Gate / Level Gaps": int(c["Gate / Level Gap"].sum()),
+        "Projected Gate / Level Gaps": int(c["Projected Gate / Level Gap"].sum()),
+        "Excluded Sections": int((c["Applicable?"] == "No").sum()),
+        "Unclear Applicability Sections": int((c["Applicable?"] == "Unclear").sum()),
     }
     return c, kpis
 
@@ -652,60 +714,77 @@ def main():
 
     with tabs[6]:
         st.subheader("Climate Change Score Simulator")
-        st.caption("Directional simulator for CDP 2026 climate disclosure. This is not an official CDP score prediction; it estimates scoring risk and likely band based on readiness, evidence quality, and advisor judgment.")
+        st.caption("Basic directional simulator for CDP 2026 climate disclosure. It models applicability, response completeness, disclosure quality, evidence strength, consistency risk, action-plan uplift, and practical score-level gates. It is not an official CDP score prediction.")
         st.session_state.climate_simulator = normalize_climate_simulator(st.session_state.climate_simulator)
         sim, sim_kpis = compute_climate_score(st.session_state.climate_simulator)
+
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Current estimate", f"{sim_kpis['Current Estimated Band']}", f"{sim_kpis['Current Climate Score Estimate']}/100")
         c2.metric("Projected estimate", f"{sim_kpis['Projected Estimated Band']}", f"{sim_kpis['Projected Climate Score Estimate']}/100")
-        c3.metric("Target estimate", f"{sim_kpis['Target Estimated Band']}", f"{sim_kpis['Target Climate Score Estimate']}/100")
-        c4.metric("Simulator confidence", f"{sim_kpis['Simulator Confidence %']}%")
+        c3.metric("Confidence", f"{sim_kpis['Simulator Confidence %']}%")
+        c4.metric("Gate / level gaps", sim_kpis["Gate / Level Gaps"])
 
-        st.info("Use Current Quality for today’s expected answer quality, Projected Quality for expected state after planned actions, and Target Quality for the client’s desired readiness. Minimum Gate indicates a practical scoring threshold below which the section may suppress management/leadership outcomes.")
+        st.markdown("#### How to use this table")
+        st.write("Adjust the editable fields to reflect what you expect the company can support in its CDP Climate response. The tool calculates current and projected scoring contribution, highlights practical scoring gates, and estimates the likely band.")
+        st.info("Keep this basic version at the section level. It is meant for planning and advisory judgment, not question-by-question official scoring replication.")
 
+        editable_cols = [
+            "Section ID", "Climate scoring section", "Applicability Type", "Applicable?", "Weight",
+            "Current Response Status", "Disclosure Quality", "Evidence Strength", "Consistency Risk",
+            "Action Plan Impact", "Minimum Level Needed", "Rule Confidence", "Interpretation Risk", "Simulator Notes"
+        ]
         edited_sim = st.data_editor(
-            sim[CLIMATE_SCORING_TEMPLATE.columns],
+            sim[editable_cols],
             use_container_width=True,
-            key="climate_score_simulator_editor_v016",
+            key="climate_score_simulator_editor_v017_basic",
             column_config={
-                "Current Quality (0-5)": st.column_config.SelectboxColumn(options=SCORE_OPTIONS),
-                "Projected Quality (0-5)": st.column_config.SelectboxColumn(options=SCORE_OPTIONS),
-                "Target Quality (0-5)": st.column_config.SelectboxColumn(options=SCORE_OPTIONS),
-                "Minimum Gate (0-5)": st.column_config.SelectboxColumn(options=SCORE_OPTIONS),
+                "Applicable?": st.column_config.SelectboxColumn(options=APPLICABLE_OPTIONS),
+                "Current Response Status": st.column_config.SelectboxColumn(options=RESPONSE_STATUS_OPTIONS),
+                "Disclosure Quality": st.column_config.SelectboxColumn(options=DISCLOSURE_QUALITY_OPTIONS),
+                "Evidence Strength": st.column_config.SelectboxColumn(options=EVIDENCE_STRENGTH_OPTIONS),
+                "Consistency Risk": st.column_config.SelectboxColumn(options=CONSISTENCY_RISK_OPTIONS),
+                "Action Plan Impact": st.column_config.NumberColumn(min_value=0.0, max_value=2.0, step=0.25, help="Expected 0-2 point maturity uplift from the selected action plan."),
+                "Minimum Level Needed": st.column_config.SelectboxColumn(options=SCORING_LEVEL_OPTIONS, help="Practical score level this section likely needs to support the desired overall result."),
                 "Weight": st.column_config.NumberColumn(min_value=0, max_value=100, step=1),
                 "Rule Confidence": st.column_config.SelectboxColumn(options=["High", "Medium", "Low"]),
                 "Interpretation Risk": st.column_config.SelectboxColumn(options=["High", "Medium", "Low"]),
-                "Scoring Impact": st.column_config.SelectboxColumn(options=["High", "Medium", "Low"]),
             },
-            disabled=["Section ID"],
+            disabled=["Section ID", "Applicability Type"],
         )
         st.session_state.climate_simulator = normalize_climate_simulator(edited_sim)
         sim, sim_kpis = compute_climate_score(st.session_state.climate_simulator)
 
-        chart_df = sim[["Climate scoring section", "Current Quality (0-5)", "Projected Quality (0-5)", "Target Quality (0-5)"]].copy()
-        radar = go.Figure()
-        theta = chart_df["Climate scoring section"].tolist()
-        radar.add_trace(go.Scatterpolar(r=chart_df["Current Quality (0-5)"].tolist(), theta=theta, fill="toself", name="Current expected quality"))
-        radar.add_trace(go.Scatterpolar(r=chart_df["Projected Quality (0-5)"].tolist(), theta=theta, fill="toself", name="Projected after actions"))
-        radar.add_trace(go.Scatterpolar(r=chart_df["Target Quality (0-5)"].tolist(), theta=theta, fill="toself", name="Target quality"))
-        radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0,5])), showlegend=True, title="Climate score simulator radar")
-        st.plotly_chart(radar, use_container_width=True)
+        st.markdown("#### Calculated scoring view")
+        calc_cols = [
+            "Climate scoring section", "Applicable?", "Current Section Score", "Projected Section Score",
+            "Current Level", "Projected Level", "Minimum Level Needed", "Gate / Level Gap",
+            "Projected Gate / Level Gap", "Scoring Risk Flag", "Current Weighted Points", "Projected Weighted Points"
+        ]
+        st.dataframe(sim[calc_cols], use_container_width=True)
 
-        points = sim[["Climate scoring section", "Current Weighted Points", "Projected Weighted Points", "Target Weighted Points", "Weight", "Scoring Impact", "Interpretation Risk"]].copy()
-        st.markdown("#### Estimated weighted scoring contribution")
-        st.dataframe(points.sort_values("Weight", ascending=False), use_container_width=True)
+        radar_df = sim[sim["Applicable?"].isin(["Yes", "Unclear"])].copy()
+        if not radar_df.empty:
+            radar = go.Figure()
+            theta = radar_df["Climate scoring section"].tolist()
+            radar.add_trace(go.Scatterpolar(r=radar_df["Current Section Score"].tolist(), theta=theta, fill="toself", name="Current estimated quality"))
+            radar.add_trace(go.Scatterpolar(r=radar_df["Projected Section Score"].tolist(), theta=theta, fill="toself", name="Projected after actions"))
+            # Target layer: minimum level converted to approximate maturity score
+            level_to_score = {"Disclosure": 1.5, "Awareness": 2.5, "Management": 3.5, "Leadership": 4.5}
+            radar.add_trace(go.Scatterpolar(r=radar_df["Minimum Level Needed"].map(level_to_score).fillna(3.5).tolist(), theta=theta, fill="toself", name="Practical target/gate"))
+            radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0,5])), showlegend=True, title="Climate scoring radar: current vs projected vs practical gate")
+            st.plotly_chart(radar, use_container_width=True)
 
-        st.markdown("#### Scoring blockers and confidence caveats")
-        blockers = sim[(sim["Current Quality (0-5)"] < sim["Minimum Gate (0-5)"]) | ((sim["Scoring Impact"] == "High") & (sim["Current Quality (0-5)"] < sim["Target Quality (0-5)"]))].copy()
-        if blockers.empty:
-            st.success("No current gate failures or high-impact gaps identified under the current assumptions.")
+        st.markdown("#### Priority scoring risks")
+        risks = sim[(sim["Applicable?"].isin(["Yes", "Unclear"])) & ((sim["Gate / Level Gap"]) | (sim["Scoring Risk Flag"] == "High"))].copy()
+        if risks.empty:
+            st.success("No high scoring-risk sections are flagged under current assumptions.")
         else:
-            st.dataframe(blockers[["Climate scoring section", "Current Quality (0-5)", "Minimum Gate (0-5)", "Target Quality (0-5)", "Scoring Impact", "Interpretation Risk", "Simulator Notes"]], use_container_width=True)
+            st.dataframe(risks[["Climate scoring section", "Current Level", "Minimum Level Needed", "Current Response Status", "Disclosure Quality", "Evidence Strength", "Consistency Risk", "Interpretation Risk", "Simulator Notes"]], use_container_width=True)
 
-        st.markdown("#### Interpretation guidance")
+        st.markdown("#### Interpretation")
         st.write(f"Current estimated band is **{sim_kpis['Current Estimated Band']}**: {sim_kpis['Current Band Description']}")
         st.write(f"Projected estimated band is **{sim_kpis['Projected Estimated Band']}**: {sim_kpis['Projected Band Description']}")
-        st.write("Confidence is reduced by high interpretation-risk sections, low-confidence scoring rules, and any current gate failures. Use the simulator to identify scoring risk and priority interventions, not to represent an official CDP score.")
+        st.write("The confidence score is reduced when applicability is unclear, rule confidence is low, interpretation risk is high, or practical gates are not met.")
 
 if __name__ == "__main__":
     main()
