@@ -1,6 +1,6 @@
 # CDP 2026 Readiness Assessment App
 
-Streamlit MVP for CDP 2026 readiness assessment, action planning, Gantt-style timeline, readiness radar forecasting, and Excel import/export.
+Streamlit MVP for CDP 2026 readiness assessment, action planning, Gantt-style timeline, radar readiness forecasting, Excel export/import, and a directional Climate Change Score Simulator.
 
 ## Run locally
 
@@ -9,15 +9,11 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## v0.1.5 updates
+## Notes
 
-- Aggregated action plan intended for CDP readiness coordination, not detailed project management replacement.
-- Default editable CDP action template with suggested timing.
-- Gap-derived action bucket that pulls from low-scoring readiness assessment items.
-- Manual action creation form.
-- Action plan sorting by start date or due date.
-- Source tracking: default template, gap assessment, manual action.
-- Optional Gantt inclusion and archive flags.
-- Linked readiness domain and expected action impact.
-- Three-layer radar chart: current readiness, readiness goal, projected readiness after action plan.
-- Excel export/import supports assessment, targets, tasks, projections, and metadata.
+The Climate Change Score Simulator is a planning and scoring-risk tool. It is not an official CDP score predictor. Use it to estimate likely scoring bands, identify scoring blockers, and compare current versus projected readiness after action-plan execution.
+
+## Files
+
+- `app.py` — Streamlit app
+- `requirements.txt` — package requirements
