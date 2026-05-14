@@ -1,15 +1,6 @@
-# CDP 2026 Readiness Assessment & Action Plan App
+# CDP 2026 Readiness Assessment App
 
-A Streamlit-based advisory tool for conducting CDP readiness assessments, tracking action plans, creating visual scorecards, exporting the assessment to Excel, and reimporting the workbook in a future session.
-
-## Features
-
-- Client profile capture
-- Readiness assessment with scores, owners, evidence needs, recommended actions, and notes
-- Dashboard with readiness scorecard, domain bar chart, radar chart, and priority gaps
-- Action plan with owner, due date, status, comments, dependencies, priority, and % complete
-- Gantt-style timeline mapped against CDP 2026 milestones
-- Excel export/import so each client assessment can be stored and resumed
+Streamlit MVP for CDP 2026 readiness assessment, action planning, Gantt-style timeline, readiness radar forecasting, and Excel import/export.
 
 ## Run locally
 
@@ -18,22 +9,15 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## Excel persistence
+## v0.1.5 updates
 
-Use the **Export Excel workbook** button in the sidebar to download the assessment workbook. At the next session, upload that workbook using **Upload prior assessment Excel** and the app will rehydrate the profile, assessment inputs, tasks, scores, and timeline data.
-
-## CDP 2026 timeline included
-
-The app includes these planning milestones:
-
-- Week of April 20, 2026: Questionnaires and guidance published
-- Week of April 27, 2026: Scoring methodology published / request lists open
-- Week of June 8, 2026: Request list submission deadline
-- Week of June 15, 2026: Response window opens
-- Week of September 14, 2026: Scoring deadline
-- Week of October 26, 2026: Final unscored response / amendments deadline
-- Week of November 30, 2026: Scores released
-
-## Notes
-
-This is an MVP scaffold designed to be customized with client-specific CDP modules, question mappings, scoring logic, and evidence templates.
+- Aggregated action plan intended for CDP readiness coordination, not detailed project management replacement.
+- Default editable CDP action template with suggested timing.
+- Gap-derived action bucket that pulls from low-scoring readiness assessment items.
+- Manual action creation form.
+- Action plan sorting by start date or due date.
+- Source tracking: default template, gap assessment, manual action.
+- Optional Gantt inclusion and archive flags.
+- Linked readiness domain and expected action impact.
+- Three-layer radar chart: current readiness, readiness goal, projected readiness after action plan.
+- Excel export/import supports assessment, targets, tasks, projections, and metadata.
