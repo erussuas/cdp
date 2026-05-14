@@ -1,18 +1,9 @@
-# CDP 2026 Readiness Assessment App
+# CDP Readiness App v0.1.8
 
-Streamlit MVP for CDP 2026 readiness assessment, action planning, timeline/Gantt visualization, Excel import/export, and a basic Climate Change Score Simulator.
+Patch release fixing the Climate Score Simulator Excel export error caused by a missing `estimate_grade()` helper.
 
 ## Run locally
-
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
 ```
-
-## Version
-
-v0.1.7
-
-## Notes
-
-The Climate Score Simulator is a directional planning tool. It is not an official CDP score prediction. It uses section-level applicability, response status, disclosure quality, evidence strength, consistency risk, action-plan impact, and practical score-level gates to estimate current and projected Climate score bands.

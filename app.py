@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-APP_VERSION = "0.1.7"
+APP_VERSION = "0.1.8"
 SCORING_VERSION = "CDP_2026_Climate_Basic_Simulator_v1"
 
 CDP_MILESTONES = pd.DataFrame([
@@ -253,6 +253,30 @@ def _section_quality_score(row) -> tuple:
         if score > 0: return "Disclosure"
         return "None"
     return current, projected, level(current), level(projected)
+
+
+def estimate_grade(score: float) -> tuple:
+    """Convert a 0-100 directional score into a CDP-style estimated band.
+
+    This is not CDP's official scoring methodology. It provides a simple
+    planning-oriented band estimate for the simulator and export workbook.
+    """
+    try:
+        score = float(score)
+    except (TypeError, ValueError):
+        score = 0.0
+    score = max(0.0, min(100.0, score))
+    if score >= 90:
+        return "A", "Leadership-ready / very strong estimated position"
+    if score >= 80:
+        return "A-", "Strong estimated position with limited gaps"
+    if score >= 65:
+        return "B", "Management-level estimated position with material improvement opportunities"
+    if score >= 45:
+        return "C", "Awareness-level estimated position with significant gaps"
+    if score >= 25:
+        return "D", "Disclosure-level estimated position; core response buildout needed"
+    return "F / Not scorable", "Very limited readiness or major missing inputs"
 
 
 def compute_climate_score(sim: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
