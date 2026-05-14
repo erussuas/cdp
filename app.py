@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-APP_VERSION = "0.1.3"
+APP_VERSION = "0.1.2"
 SCORING_VERSION = "CDP_2026_Readiness_v1"
 
 CDP_MILESTONES = pd.DataFrame([
@@ -315,100 +315,104 @@ def main():
 
     with tabs[1]:
         st.subheader("Readiness Assessment")
-        st.write("Score each item from 0 to 5. Scores use standard Streamlit selectboxes so the dropdown opens on the first click. Text fields are written directly to session state after the first entry.")
+        st.write("Score each item from 0 to 5. This table-style editor uses standard dropdowns and text fields so values persist immediately after the first entry.")
         st.session_state.assessment = normalize_assessment(st.session_state.assessment)
 
-        assessment_df = st.session_state.assessment.copy()
+        assessment_df = st.session_state.assessment.copy().reset_index(drop=True)
         domain_options = ["All domains"] + sorted(assessment_df["Domain"].dropna().unique().tolist())
-        selected_domain = st.selectbox("Filter by domain", domain_options, key="assessment_domain_filter")
+        selected_domain = st.selectbox("Filter by domain", domain_options, key="assessment_filter_domain")
+
+        visible_indices = assessment_df.index.tolist()
         if selected_domain != "All domains":
             visible_indices = assessment_df.index[assessment_df["Domain"] == selected_domain].tolist()
-        else:
-            visible_indices = assessment_df.index.tolist()
+
+        header = st.columns([1.3, 1.7, 0.75, 1.1, 1.0, 1.1, 2.0, 2.0, 2.0])
+        labels = ["Domain", "Assessment Item", "Score", "Status", "Risk", "Owner", "Evidence Needed", "Comments / Notes", "Recommended Action"]
+        for h, label in zip(header, labels):
+            h.markdown(f"**{label}**")
 
         for idx in visible_indices:
-            row = st.session_state.assessment.loc[idx]
-            expander_label = f"{row['Domain']} — {row['Assessment Item']}"
-            with st.expander(expander_label, expanded=False):
-                st.caption(str(row["Readiness Question"]))
-                c1, c2, c3, c4 = st.columns([1, 1.2, 1.2, 1.6])
+            row = assessment_df.loc[idx]
+            cols = st.columns([1.3, 1.7, 0.75, 1.1, 1.0, 1.1, 2.0, 2.0, 2.0])
+            cols[0].write(str(row["Domain"]))
+            cols[1].write(str(row["Assessment Item"]))
 
-                current_score = row.get("Score (0-5)", 0)
-                try:
-                    current_score = float(current_score)
-                except Exception:
-                    current_score = 0
-                current_score = round(current_score * 2) / 2
-                score_index = SCORE_OPTIONS.index(current_score) if current_score in SCORE_OPTIONS else 0
-                new_score = c1.selectbox(
-                    "Score",
-                    SCORE_OPTIONS,
-                    index=score_index,
-                    key=f"assess_score_{idx}",
-                )
-                st.session_state.assessment.at[idx, "Score (0-5)"] = new_score
+            try:
+                score_value = float(row.get("Score (0-5)", 0))
+            except Exception:
+                score_value = 0.0
+            score_value = round(score_value * 2) / 2
+            score_index = SCORE_OPTIONS.index(score_value) if score_value in SCORE_OPTIONS else 0
+            assessment_df.at[idx, "Score (0-5)"] = cols[2].selectbox(
+                "Score",
+                SCORE_OPTIONS,
+                index=score_index,
+                key=f"score_select_{idx}",
+                label_visibility="collapsed",
+            )
 
-                status_val = row.get("Status", "Not assessed")
-                status_index = STATUS_OPTIONS.index(status_val) if status_val in STATUS_OPTIONS else 0
-                new_status = c2.selectbox(
-                    "Status",
-                    STATUS_OPTIONS,
-                    index=status_index,
-                    key=f"assess_status_{idx}",
-                )
-                st.session_state.assessment.at[idx, "Status"] = new_status
+            status_value = str(row.get("Status", "Not assessed"))
+            status_index = STATUS_OPTIONS.index(status_value) if status_value in STATUS_OPTIONS else 0
+            assessment_df.at[idx, "Status"] = cols[3].selectbox(
+                "Status",
+                STATUS_OPTIONS,
+                index=status_index,
+                key=f"status_select_{idx}",
+                label_visibility="collapsed",
+            )
 
-                risk_val = row.get("Scoring Risk", "Medium")
-                risk_index = RISK_OPTIONS.index(risk_val) if risk_val in RISK_OPTIONS else 1
-                new_risk = c3.selectbox(
-                    "Scoring Risk",
-                    RISK_OPTIONS,
-                    index=risk_index,
-                    key=f"assess_risk_{idx}",
-                )
-                st.session_state.assessment.at[idx, "Scoring Risk"] = new_risk
+            risk_value = str(row.get("Scoring Risk", "Medium"))
+            risk_index = RISK_OPTIONS.index(risk_value) if risk_value in RISK_OPTIONS else 1
+            assessment_df.at[idx, "Scoring Risk"] = cols[4].selectbox(
+                "Risk",
+                RISK_OPTIONS,
+                index=risk_index,
+                key=f"risk_select_{idx}",
+                label_visibility="collapsed",
+            )
 
-                owner_val = "" if pd.isna(row.get("Owner", "")) else str(row.get("Owner", ""))
-                new_owner = c4.text_input(
-                    "Owner",
-                    value=owner_val,
-                    key=f"assess_owner_{idx}",
-                )
-                st.session_state.assessment.at[idx, "Owner"] = new_owner
+            owner_value = "" if pd.isna(row.get("Owner", "")) else str(row.get("Owner", ""))
+            assessment_df.at[idx, "Owner"] = cols[5].text_input(
+                "Owner",
+                value=owner_value,
+                key=f"owner_input_{idx}",
+                label_visibility="collapsed",
+            )
 
-                ev_val = "" if pd.isna(row.get("Evidence Needed", "")) else str(row.get("Evidence Needed", ""))
-                new_ev = st.text_area(
-                    "Evidence Needed",
-                    value=ev_val,
-                    key=f"assess_evidence_{idx}",
-                    height=80,
-                )
-                st.session_state.assessment.at[idx, "Evidence Needed"] = new_ev
+            evidence_value = "" if pd.isna(row.get("Evidence Needed", "")) else str(row.get("Evidence Needed", ""))
+            assessment_df.at[idx, "Evidence Needed"] = cols[6].text_area(
+                "Evidence Needed",
+                value=evidence_value,
+                key=f"evidence_input_{idx}",
+                height=70,
+                label_visibility="collapsed",
+            )
 
-                notes_val = "" if pd.isna(row.get("Comments / Notes", "")) else str(row.get("Comments / Notes", ""))
-                new_notes = st.text_area(
-                    "Comments / Notes",
-                    value=notes_val,
-                    key=f"assess_notes_{idx}",
-                    height=80,
-                )
-                st.session_state.assessment.at[idx, "Comments / Notes"] = new_notes
+            notes_value = "" if pd.isna(row.get("Comments / Notes", "")) else str(row.get("Comments / Notes", ""))
+            assessment_df.at[idx, "Comments / Notes"] = cols[7].text_area(
+                "Comments / Notes",
+                value=notes_value,
+                key=f"notes_input_{idx}",
+                height=70,
+                label_visibility="collapsed",
+            )
 
-                action_val = "" if pd.isna(row.get("Recommended Action", "")) else str(row.get("Recommended Action", ""))
-                new_action = st.text_area(
-                    "Recommended Action",
-                    value=action_val,
-                    key=f"assess_action_{idx}",
-                    height=80,
-                )
-                st.session_state.assessment.at[idx, "Recommended Action"] = new_action
+            action_value = "" if pd.isna(row.get("Recommended Action", "")) else str(row.get("Recommended Action", ""))
+            assessment_df.at[idx, "Recommended Action"] = cols[8].text_area(
+                "Recommended Action",
+                value=action_value,
+                key=f"action_input_{idx}",
+                height=70,
+                label_visibility="collapsed",
+            )
 
-        st.session_state.assessment = normalize_assessment(st.session_state.assessment)
-        st.markdown("#### Current assessment table")
-        st.dataframe(
-            st.session_state.assessment[["Domain", "Assessment Item", "Score (0-5)", "Status", "Owner", "Scoring Risk", "Evidence Needed", "Comments / Notes", "Recommended Action"]],
-            use_container_width=True,
-        )
+        st.session_state.assessment = normalize_assessment(assessment_df)
+
+        with st.expander("Show readiness question details"):
+            st.dataframe(
+                st.session_state.assessment[["Domain", "Assessment Item", "Readiness Question", "Default Owner", "Weight"]],
+                use_container_width=True,
+            )
 
     with tabs[2]:
         st.subheader("Visual Scorecard")
