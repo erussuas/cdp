@@ -1,6 +1,7 @@
 import io
 from datetime import date, datetime
 from typing import Dict, Tuple
+import html
 
 import numpy as np
 import pandas as pd
@@ -8,7 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-APP_VERSION = "0.1.8"
+APP_VERSION = "0.1.9"
 SCORING_VERSION = "CDP_2026_Climate_Basic_Simulator_v1"
 
 CDP_MILESTONES = pd.DataFrame([
@@ -23,59 +24,39 @@ CDP_MILESTONES = pd.DataFrame([
 CDP_MILESTONES["Date"] = pd.to_datetime(CDP_MILESTONES["Date"])
 
 ASSESSMENT_TEMPLATE = pd.DataFrame([
-    ["Governance & Accountability", "CDP process owner assigned", "Is there a clearly accountable owner for the full CDP response process?", 1.1, "High", "Sustainability", ""],
-    ["Governance & Accountability", "Executive sponsor engaged", "Is there an executive sponsor who can unblock cross-functional issues?", 1.0, "High", "Executive sponsor", ""],
-    ["Governance & Accountability", "Board / committee oversight documented", "Is climate/environmental oversight documented and current?", 0.9, "Medium", "Legal / Sustainability", ""],
-    ["Governance & Accountability", "Final review and sign-off process defined", "Is there a documented path for legal, finance and executive approval?", 1.0, "High", "PMO", ""],
-    ["Reporting Boundary & Setup", "Financial boundary alignment", "Is the CDP boundary aligned to financial statements or clearly reconciled?", 1.3, "High", "Finance", ""],
-    ["Reporting Boundary & Setup", "M&A / divestiture treatment", "Are acquisitions, divestitures, JVs and exclusions identified and documented?", 1.1, "High", "Finance / Legal", ""],
-    ["Reporting Boundary & Setup", "Facility master data complete", "Is the facility/site list complete and aligned to the selected boundary?", 1.2, "High", "Facilities / Data", ""],
-    ["Reporting Boundary & Setup", "Questionnaire setup logic validated", "Have sector, theme, country and supply-chain setup answers been reviewed before downstream entry?", 1.1, "High", "Sustainability", ""],
-    ["Financial Alignment", "Reporting year aligned", "Does environmental reporting align with financial reporting period?", 1.0, "Medium", "Finance", ""],
-    ["Financial Alignment", "Revenue/currency inputs confirmed", "Are revenue and reporting currency ready and consistent with CDP setup?", 0.8, "Medium", "Finance", ""],
-    ["Financial Alignment", "Financial impact methodology", "Are risk/opportunity financial impact assumptions and data sources defined?", 1.1, "High", "Finance / Risk", ""],
-    ["Scope 1 & 2 Data", "Fuel data complete", "Are stationary and mobile fuel data complete for the reporting year?", 1.1, "High", "Facilities", ""],
-    ["Scope 1 & 2 Data", "Refrigerants and fugitive emissions captured", "Are refrigerant inventories, leakage, and service records captured?", 1.0, "High", "Facilities", ""],
-    ["Scope 1 & 2 Data", "Utility data complete", "Are electricity/steam/heat/cooling data complete for all in-boundary sites?", 1.3, "High", "Energy / UBM", ""],
-    ["Scope 1 & 2 Data", "Market-based Scope 2 support", "Are supplier factors, residual mix, RECs/EACs and market instruments documented?", 1.2, "High", "Energy Procurement", ""],
-    ["Scope 1 & 2 Data", "Emission factors version-controlled", "Are emission factor sources, years, and methodologies documented?", 0.9, "Medium", "Data / Sustainability", ""],
-    ["Scope 3 Data", "Category relevance screening", "Have all Scope 3 categories been assessed for relevance?", 1.2, "High", "Sustainability", ""],
-    ["Scope 3 Data", "Purchased goods/services methodology", "Is category 1 methodology documented with spend/activity data and factors?", 1.3, "High", "Procurement / Finance", ""],
-    ["Scope 3 Data", "Supplier engagement data", "Are supplier-specific data requests, coverage and quality tracked?", 1.1, "High", "Procurement", ""],
-    ["Scope 3 Data", "Historical/restatement approach", "Is there a documented approach for prior-year data and restatements?", 1.0, "Medium", "Sustainability / Finance", ""],
-    ["Water / Forests / Nature", "Water relevance and withdrawals", "Are water-relevant sites, withdrawals, discharges and stress indicators available?", 1.0, "Medium", "EHS / Facilities", ""],
-    ["Water / Forests / Nature", "Facility geolocation readiness", "Can geolocation data be provided for all or material facilities?", 0.8, "Medium", "Facilities / Data", ""],
-    ["Water / Forests / Nature", "Forests/nature applicability", "Have commodity, biodiversity, plastics and ocean applicability questions been reviewed?", 0.8, "Medium", "Sustainability / Procurement", ""],
-    ["Systems & Data Architecture", "System of record identified", "Is there a clear system of record for emissions/activity data?", 1.1, "High", "IT / Data", ""],
-    ["Systems & Data Architecture", "Data lineage and audit trail", "Can data be traced from source to calculation to disclosure?", 1.2, "High", "Data / Sustainability", ""],
-    ["Systems & Data Architecture", "QA/QC workflow", "Is there a repeatable QA/QC process with exception tracking?", 1.1, "High", "PMO / Data", ""],
-    ["Evidence & Auditability", "Evidence library defined", "Is there a structured library for invoices, policies, calculations and approvals?", 1.1, "High", "PMO", ""],
-    ["Evidence & Auditability", "Third-party assurance status", "Is GHG assurance or verification available/planned?", 1.0, "High", "Sustainability / Assurance", ""],
-    ["Disclosure Narrative", "Climate risk and opportunity narrative", "Are risk/opportunity narratives supported by analysis and financial assumptions?", 1.0, "High", "Risk / Sustainability", ""],
-    ["Disclosure Narrative", "Transition plan and targets narrative", "Are targets, progress, transition plan and decarbonization actions documented?", 1.2, "High", "Sustainability", ""],
+    ["Governance & Oversight", "Governance & Oversight", "Board/executive oversight, accountable owners, management responsibility, and approval/sign-off path for the CDP response. Strong governance reduces scoring risk because CDP evaluates whether climate accountability is embedded beyond the sustainability team.", 1.2, "High", "Sustainability / Executive Sponsor", ""],
+    ["Reporting Boundary & Organizational Alignment", "Reporting Boundary & Organizational Alignment", "Alignment between CDP reporting boundary, financial reporting boundary, acquisitions/divestitures, legal entities, sites, and countries. Boundary discipline is a major dependency because early CDP setup answers drive downstream questions and scoring pathways.", 1.3, "High", "Finance / Legal / Sustainability", ""],
+    ["Scope 1 & 2 Data Readiness Readiness", "Scope 1 & 2 Data Readiness Readiness", "Completeness and quality of fuel, refrigerant, electricity, steam/heat/cooling, emission factors, market-based Scope 2 support, and QA/QC. This is a core scoring driver for climate disclosure.", 1.4, "High", "Energy / Facilities / Data", ""],
+    ["Scope 3 Readiness", "Scope 3 Readiness", "Scope 3 category relevance, coverage, data quality, supplier engagement, methodology documentation, exclusions, and restatement approach. Scope 3 is often the biggest gap between basic disclosure and stronger management/leadership performance.", 1.4, "High", "Sustainability / Procurement / Finance", ""],
+    ["Targets & Transition Planning", "Targets & Transition Planning", "Climate targets, target coverage, progress tracking, decarbonization roadmap, transition plan credibility, and linkage to business strategy. This drives the ability to demonstrate forward-looking management and leadership readiness.", 1.2, "High", "Sustainability / Strategy", ""],
+    ["Risk & Opportunity Integration", "Risk & Opportunity Integration", "Climate risk and opportunity identification, financial impact assessment, enterprise risk integration, time horizons, controls, and response actions. This captures whether CDP responses are strategic and decision-useful rather than merely descriptive.", 1.1, "High", "Risk / Finance / Sustainability", ""],
+    ["Data Systems & QA/QC", "Data Systems & QA/QC", "System of record, data lineage, version control, calculation traceability, exception handling, and repeatable QA/QC workflows. This measures whether the disclosure process is auditable and repeatable.", 1.0, "Medium", "IT / Data / PMO", ""],
+    ["Evidence & Documentation", "Evidence & Documentation", "Availability of supporting evidence such as invoices, emission-factor sources, REC/EAC documentation, policies, approvals, calculation files, assurance statements, and workpapers. Evidence quality affects confidence and defensibility.", 1.0, "High", "PMO / Sustainability", ""],
+    ["Disclosure Narrative Quality Quality", "Disclosure Narrative Quality Quality", "Ability to produce complete, specific, internally consistent CDP narratives for governance, strategy, risks, opportunities, targets, progress, methodologies, and value-chain engagement. This is where many scoring outcomes depend on quality, not just completion.", 1.0, "Medium", "Sustainability", ""],
+    ["Optional Nature/Water Applicability", "Optional Nature/Water Applicability", "Initial readiness for water, forests, biodiversity, plastics, ocean, and facility geolocation where applicable. This should stay lightweight unless the client has relevant CDP themes or high-impact sectors.", 0.8, "Medium", "EHS / Sustainability / Procurement", ""],
 ], columns=["Domain", "Assessment Item", "Readiness Question", "Weight", "Scoring Risk", "Default Owner", "Evidence Needed"])
-ASSESSMENT_TEMPLATE["Score (0-5)"] = 0.0
-ASSESSMENT_TEMPLATE["Target Score"] = 4.0
+ASSESSMENT_TEMPLATE["Score (0-5)"] = 0
+ASSESSMENT_TEMPLATE["Target Score"] = 4
 ASSESSMENT_TEMPLATE["Status"] = "Not assessed"
 ASSESSMENT_TEMPLATE["Owner"] = ASSESSMENT_TEMPLATE["Default Owner"]
 ASSESSMENT_TEMPLATE["Comments / Notes"] = ""
 ASSESSMENT_TEMPLATE["Recommended Action"] = ""
 
 TASK_TEMPLATE = pd.DataFrame([
-    ["T-001", "Program setup", "Confirm CDP scope, themes and sector setup", "Sustainability", "2026-04-20", "2026-04-30", "High", "Not Started", 0, "Questionnaires & guidance published", "T-001", "", "Default template", True, False, 0.30, "Governance & Accountability", ""],
-    ["T-002", "Governance", "Confirm executive sponsor and CDP RACI", "PMO", "2026-04-27", "2026-05-10", "High", "Not Started", 0, "Scoring methodology published / request lists open", "T-002", "T-001", "Default template", True, False, 0.40, "Governance & Accountability", ""],
-    ["T-003", "Boundary", "Reconcile CDP boundary to financial statements", "Finance", "2026-04-27", "2026-05-17", "High", "Not Started", 0, "Scoring methodology published / request lists open", "T-003", "T-001", "Default template", True, False, 0.50, "Reporting Boundary & Setup", ""],
-    ["T-004", "Data", "Finalize facility/site master list and country coverage", "Facilities / Data", "2026-05-01", "2026-05-24", "High", "Not Started", 0, "Response window opens", "T-004", "T-003", "Default template", True, False, 0.40, "Reporting Boundary & Setup", ""],
-    ["T-005", "Scope 1", "Collect and validate fuel/refrigerant data", "Facilities", "2026-05-15", "2026-06-21", "High", "Not Started", 0, "Response window opens", "T-005", "T-004", "Default template", True, False, 0.50, "Scope 1 & 2 Data", ""],
-    ["T-006", "Scope 2", "Collect and validate utility data and RECs/EACs", "Energy / UBM", "2026-05-15", "2026-06-28", "High", "Not Started", 0, "Response window opens", "T-006", "T-004", "Default template", True, False, 0.50, "Scope 1 & 2 Data", ""],
-    ["T-007", "Scope 3", "Complete Scope 3 relevance and data mapping", "Sustainability / Procurement", "2026-05-20", "2026-07-12", "High", "Not Started", 0, "Scoring deadline", "T-007", "T-003", "Default template", True, False, 0.60, "Scope 3 Data", ""],
-    ["T-008", "Nature", "Confirm water/forests/plastics/ocean applicability", "Sustainability / EHS", "2026-05-20", "2026-06-21", "Medium", "Not Started", 0, "Response window opens", "T-008", "T-001", "Default template", True, False, 0.40, "Water / Forests / Nature", ""],
-    ["T-009", "Evidence", "Build evidence library and source-control calculations", "PMO / Data", "2026-06-01", "2026-07-19", "High", "Not Started", 0, "Scoring deadline", "T-009", "T-005,T-006,T-007", "Default template", True, False, 0.50, "Evidence & Auditability", ""],
-    ["T-010", "Drafting", "Draft CDP response narratives", "Sustainability", "2026-06-15", "2026-08-02", "High", "Not Started", 0, "Response window opens", "T-010", "T-005,T-006,T-007,T-008", "Default template", True, False, 0.50, "Disclosure Narrative", ""],
-    ["T-011", "QA/QC", "Run data QA/QC and scoring-risk review", "PMO / Sustainability", "2026-07-20", "2026-08-23", "High", "Not Started", 0, "Scoring deadline", "T-011", "T-009,T-010", "Default template", True, False, 0.40, "Systems & Data Architecture", ""],
-    ["T-012", "Leadership review", "Complete legal, finance and executive review", "Executive sponsor", "2026-08-10", "2026-09-06", "High", "Not Started", 0, "Scoring deadline", "T-012", "T-011", "Default template", True, False, 0.30, "Governance & Accountability", ""],
-    ["T-013", "Submission", "Submit CDP response before scoring deadline", "Sustainability", "2026-09-07", "2026-09-14", "High", "Not Started", 0, "Scoring deadline", "T-013", "T-012", "Default template", True, False, 0.20, "Governance & Accountability", ""],
-    ["T-014", "Post-submission", "Archive final evidence package and lessons learned", "PMO", "2026-09-15", "2026-10-26", "Medium", "Not Started", 0, "Final unscored response / amendments deadline", "T-014", "T-013", "Default template", True, False, 0.20, "Evidence & Auditability", ""],
+    ["T-001", "Program setup", "Confirm CDP scope, themes and sector setup", "Sustainability", "2026-04-20", "2026-04-30", "High", "Not Started", 0, "Questionnaires & guidance published", "T-001", "", "Default template", True, False, 0.30, "Governance & Oversight", ""],
+    ["T-002", "Governance", "Confirm executive sponsor and CDP RACI", "PMO", "2026-04-27", "2026-05-10", "High", "Not Started", 0, "Scoring methodology published / request lists open", "T-002", "T-001", "Default template", True, False, 0.40, "Governance & Oversight", ""],
+    ["T-003", "Boundary", "Reconcile CDP boundary to financial statements", "Finance", "2026-04-27", "2026-05-17", "High", "Not Started", 0, "Scoring methodology published / request lists open", "T-003", "T-001", "Default template", True, False, 0.50, "Reporting Boundary & Organizational Alignment", ""],
+    ["T-004", "Data", "Finalize facility/site master list and country coverage", "Facilities / Data", "2026-05-01", "2026-05-24", "High", "Not Started", 0, "Response window opens", "T-004", "T-003", "Default template", True, False, 0.40, "Reporting Boundary & Organizational Alignment", ""],
+    ["T-005", "Scope 1", "Collect and validate fuel/refrigerant data", "Facilities", "2026-05-15", "2026-06-21", "High", "Not Started", 0, "Response window opens", "T-005", "T-004", "Default template", True, False, 0.50, "Scope 1 & 2 Data Readiness", ""],
+    ["T-006", "Scope 2", "Collect and validate utility data and RECs/EACs", "Energy / UBM", "2026-05-15", "2026-06-28", "High", "Not Started", 0, "Response window opens", "T-006", "T-004", "Default template", True, False, 0.50, "Scope 1 & 2 Data Readiness", ""],
+    ["T-007", "Scope 3", "Complete Scope 3 relevance and data mapping", "Sustainability / Procurement", "2026-05-20", "2026-07-12", "High", "Not Started", 0, "Scoring deadline", "T-007", "T-003", "Default template", True, False, 0.60, "Scope 3 Readiness", ""],
+    ["T-008", "Nature", "Confirm water/forests/plastics/ocean applicability", "Sustainability / EHS", "2026-05-20", "2026-06-21", "Medium", "Not Started", 0, "Response window opens", "T-008", "T-001", "Default template", True, False, 0.40, "Optional Nature/Water Applicability", ""],
+    ["T-009", "Evidence", "Build evidence library and source-control calculations", "PMO / Data", "2026-06-01", "2026-07-19", "High", "Not Started", 0, "Scoring deadline", "T-009", "T-005,T-006,T-007", "Default template", True, False, 0.50, "Evidence & Documentation", ""],
+    ["T-010", "Drafting", "Draft CDP response narratives", "Sustainability", "2026-06-15", "2026-08-02", "High", "Not Started", 0, "Response window opens", "T-010", "T-005,T-006,T-007,T-008", "Default template", True, False, 0.50, "Disclosure Narrative Quality", ""],
+    ["T-011", "QA/QC", "Run data QA/QC and scoring-risk review", "PMO / Sustainability", "2026-07-20", "2026-08-23", "High", "Not Started", 0, "Scoring deadline", "T-011", "T-009,T-010", "Default template", True, False, 0.40, "Data Systems & QA/QC", ""],
+    ["T-012", "Leadership review", "Complete legal, finance and executive review", "Executive sponsor", "2026-08-10", "2026-09-06", "High", "Not Started", 0, "Scoring deadline", "T-012", "T-011", "Default template", True, False, 0.30, "Governance & Oversight", ""],
+    ["T-013", "Submission", "Submit CDP response before scoring deadline", "Sustainability", "2026-09-07", "2026-09-14", "High", "Not Started", 0, "Scoring deadline", "T-013", "T-012", "Default template", True, False, 0.20, "Governance & Oversight", ""],
+    ["T-014", "Post-submission", "Archive final evidence package and lessons learned", "PMO", "2026-09-15", "2026-10-26", "Medium", "Not Started", 0, "Final unscored response / amendments deadline", "T-014", "T-013", "Default template", True, False, 0.20, "Evidence & Documentation", ""],
 ], columns=["Task ID", "Workstream", "Task Name", "Owner", "Start Date", "Due Date", "Priority", "Status", "% Complete", "CDP Milestone", "Assessment Link", "Dependencies", "Source", "Include in Gantt?", "Archived?", "Expected Impact", "Linked Domain", "Comments / Notes"])
 
 
@@ -111,7 +92,7 @@ STATUS_OPTIONS = ["Not assessed", "Not Started", "In Progress", "Blocked", "Comp
 TASK_STATUS_OPTIONS = ["Not Started", "In Progress", "Blocked", "Complete", "Deferred"]
 PRIORITY_OPTIONS = ["High", "Medium", "Low"]
 RISK_OPTIONS = ["High", "Medium", "Low"]
-SCORE_OPTIONS = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+SCORE_OPTIONS = [0, 1, 2, 3, 4, 5]
 SOURCE_OPTIONS = ["Default template", "Gap assessment", "Manual action"]
 PROFILE_PLACEHOLDERS = {
     "Client Name": "Enter company / client name",
@@ -154,10 +135,8 @@ def normalize_assessment(assessment: pd.DataFrame) -> pd.DataFrame:
             a[col] = ASSESSMENT_TEMPLATE[col].iloc[0] if len(ASSESSMENT_TEMPLATE) else ""
     a = a[list(ASSESSMENT_TEMPLATE.columns)]
     a["Weight"] = pd.to_numeric(a["Weight"], errors="coerce").fillna(1.0)
-    a["Score (0-5)"] = pd.to_numeric(a["Score (0-5)"], errors="coerce").fillna(0).clip(0, 5)
-    a["Target Score"] = pd.to_numeric(a["Target Score"], errors="coerce").fillna(4).clip(0, 5)
-    a["Score (0-5)"] = (a["Score (0-5)"] * 2).round() / 2
-    a["Target Score"] = (a["Target Score"] * 2).round() / 2
+    a["Score (0-5)"] = pd.to_numeric(a["Score (0-5)"], errors="coerce").fillna(0).round().clip(0, 5).astype(int)
+    a["Target Score"] = pd.to_numeric(a["Target Score"], errors="coerce").fillna(4).round().clip(0, 5).astype(int)
     for col in ["Domain", "Assessment Item", "Readiness Question", "Scoring Risk", "Default Owner", "Evidence Needed", "Status", "Owner", "Comments / Notes", "Recommended Action"]:
         a[col] = a[col].fillna("").astype(str)
     a.loc[~a["Status"].isin(STATUS_OPTIONS), "Status"] = "Not assessed"
@@ -536,7 +515,7 @@ def main():
     st.set_page_config(page_title="CDP 2026 Readiness Assessment", layout="wide")
     init_state()
     st.title("CDP 2026 Readiness Assessment & Action Plan")
-    st.caption("Aggregated readiness assessment, action planning, Gantt-style timeline, radar forecast, and Excel import/export.")
+    st.caption("Simplified readiness assessment, action planning, Gantt-style timeline, radar forecast, climate score simulator, and Excel import/export.")
 
     with st.sidebar:
         st.header("Session")
@@ -590,10 +569,13 @@ def main():
         for idx in visible_indices:
             row = assessment_df.loc[idx]
             cols = st.columns([1.2, 1.55, 0.65, 0.65, 1.0, 0.8, 1.0, 1.6, 1.6, 1.8])
-            cols[0].write(str(row["Domain"]))
-            cols[1].write(str(row["Assessment Item"]))
+            rationale = html.escape(str(row.get("Readiness Question", "")))
+            item = html.escape(str(row.get("Assessment Item", "")))
+            domain = html.escape(str(row.get("Domain", "")))
+            cols[0].markdown(f"<span title='{rationale}'>{domain}</span>", unsafe_allow_html=True)
+            cols[1].markdown(f"<span title='{rationale}'>ℹ️ {item}</span>", unsafe_allow_html=True)
             for colname, cidx, keyprefix in [("Score (0-5)", 2, "score_select"), ("Target Score", 3, "target_select")]:
-                value = round(float(row.get(colname, 0)) * 2) / 2
+                value = int(round(float(row.get(colname, 0))))
                 index = SCORE_OPTIONS.index(value) if value in SCORE_OPTIONS else 0
                 assessment_df.at[idx, colname] = cols[cidx].selectbox(colname, SCORE_OPTIONS, index=index, key=f"{keyprefix}_{idx}", label_visibility="collapsed")
             status_value = str(row.get("Status", "Not assessed"))
@@ -616,14 +598,14 @@ def main():
         c2.metric("Projected Readiness", f"{kpis['Projected Readiness %']}%", f"{kpis['Projected Readiness Score']}/5")
         c3.metric("Submission Confidence", f"{kpis['Submission Confidence %']}%")
         c4.metric("High-Risk Gaps", kpis["High-Risk Low-Score Items"])
-        fig = px.bar(module.sort_values("Current Readiness"), x="Current Readiness", y="Domain", orientation="h", range_x=[0,5], title="Current Readiness by Domain")
-        st.plotly_chart(fig, use_container_width=True)
         radar = go.Figure()
         theta = module["Domain"].tolist()
         for col, name in [("Current Readiness", "Current readiness state"), ("Readiness Goal", "Readiness goal"), ("Projected After Action Plan", "Projected impact of action plan")]:
             radar.add_trace(go.Scatterpolar(r=module[col].tolist(), theta=theta, fill="toself", name=name))
         radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0,5])), showlegend=True, title="Readiness Radar: Current vs Goal vs Action Plan Impact")
         st.plotly_chart(radar, use_container_width=True)
+        fig = px.bar(module.sort_values("Current Readiness"), x="Current Readiness", y="Domain", orientation="h", range_x=[0,5], title="Current Readiness by Domain")
+        st.plotly_chart(fig, use_container_width=True)
         st.subheader("Priority Gaps")
         gap_df = st.session_state.assessment.copy()
         gaps = gap_df[(gap_df["Scoring Risk"] == "High") & (gap_df["Score (0-5)"] < gap_df["Target Score"])]
@@ -638,10 +620,20 @@ def main():
             if gap_bucket.empty:
                 st.success("No new gap-derived actions available, or all current gaps already have linked tasks.")
             else:
+                if "gap_bucket_select_all" not in st.session_state:
+                    st.session_state.gap_bucket_select_all = False
+                b1, b2 = st.columns([1, 5])
+                if b1.button("Select all"):
+                    st.session_state.gap_bucket_select_all = True
+                    st.session_state.gap_bucket_editor_version = st.session_state.get("gap_bucket_editor_version", 0) + 1
+                if b2.button("Unselect all"):
+                    st.session_state.gap_bucket_select_all = False
+                    st.session_state.gap_bucket_editor_version = st.session_state.get("gap_bucket_editor_version", 0) + 1
+                gap_bucket["Add?"] = bool(st.session_state.gap_bucket_select_all)
                 edited_bucket = st.data_editor(
                     gap_bucket,
                     use_container_width=True,
-                    key="gap_bucket_editor",
+                    key=f"gap_bucket_editor_{st.session_state.get('gap_bucket_editor_version', 0)}",
                     column_config={
                         "Add?": st.column_config.CheckboxColumn("Add?"),
                         "Priority": st.column_config.SelectboxColumn(options=PRIORITY_OPTIONS),
@@ -715,11 +707,25 @@ def main():
 
     with tabs[4]:
         st.subheader("CDP 2026 Timeline Reference")
-        st.dataframe(CDP_MILESTONES, use_container_width=True)
-        fig = px.scatter(CDP_MILESTONES, x="Date", y=[1]*len(CDP_MILESTONES), text="Milestone", title="CDP 2026 Milestones")
-        fig.update_traces(textposition="top center")
-        fig.update_yaxes(visible=False)
+        milestone_plot = CDP_MILESTONES.copy()
+        # Stagger milestone points vertically so labels do not overlap.
+        milestone_plot["Lane"] = [0, 1, 0.35, 1.35, 0.7, 1.7, 0.15][:len(milestone_plot)]
+        text_positions = ["top center", "bottom center", "top center", "bottom center", "top center", "bottom center", "top center"][:len(milestone_plot)]
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=milestone_plot["Date"],
+            y=milestone_plot["Lane"],
+            mode="lines+markers+text",
+            text=milestone_plot["Milestone"],
+            textposition=text_positions,
+            hovertext=milestone_plot["Notes"],
+            hoverinfo="text+x",
+            marker=dict(size=11),
+            line=dict(width=2),
+        ))
+        fig.update_layout(title="CDP 2026 Milestones", height=500, yaxis=dict(visible=False, range=[-0.45, 2.15]), margin=dict(t=70, b=40))
         st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(CDP_MILESTONES, use_container_width=True)
 
     with tabs[5]:
         st.subheader("Summary Report")
@@ -742,11 +748,25 @@ def main():
         st.session_state.climate_simulator = normalize_climate_simulator(st.session_state.climate_simulator)
         sim, sim_kpis = compute_climate_score(st.session_state.climate_simulator)
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Current estimate", f"{sim_kpis['Current Estimated Band']}", f"{sim_kpis['Current Climate Score Estimate']}/100")
-        c2.metric("Projected estimate", f"{sim_kpis['Projected Estimated Band']}", f"{sim_kpis['Projected Climate Score Estimate']}/100")
-        c3.metric("Confidence", f"{sim_kpis['Simulator Confidence %']}%")
-        c4.metric("Gate / level gaps", sim_kpis["Gate / Level Gaps"])
+        left, right = st.columns([0.36, 0.64])
+        with left:
+            m1, m2 = st.columns(2)
+            m1.metric("Current estimate", f"{sim_kpis['Current Estimated Band']}", f"{sim_kpis['Current Climate Score Estimate']}/100")
+            m2.metric("Projected estimate", f"{sim_kpis['Projected Estimated Band']}", f"{sim_kpis['Projected Climate Score Estimate']}/100")
+            m3, m4 = st.columns(2)
+            m3.metric("Confidence", f"{sim_kpis['Simulator Confidence %']}%")
+            m4.metric("Gate / level gaps", sim_kpis["Gate / Level Gaps"])
+        with right:
+            radar_df_top = sim[sim["Applicable?"].isin(["Yes", "Unclear"])].copy()
+            if not radar_df_top.empty:
+                radar_top = go.Figure()
+                theta_top = radar_df_top["Climate scoring section"].tolist()
+                radar_top.add_trace(go.Scatterpolar(r=radar_df_top["Current Section Score"].tolist(), theta=theta_top, fill="toself", name="Current"))
+                radar_top.add_trace(go.Scatterpolar(r=radar_df_top["Projected Section Score"].tolist(), theta=theta_top, fill="toself", name="Projected"))
+                level_to_score_top = {"Disclosure": 1.5, "Awareness": 2.5, "Management": 3.5, "Leadership": 4.5}
+                radar_top.add_trace(go.Scatterpolar(r=radar_df_top["Minimum Level Needed"].map(level_to_score_top).fillna(3.5).tolist(), theta=theta_top, fill="toself", name="Target/gate"))
+                radar_top.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0,5])), showlegend=True, title="Climate scoring radar", height=360, margin=dict(t=50, b=20))
+                st.plotly_chart(radar_top, use_container_width=True)
 
         st.markdown("#### How to use this table")
         st.write("Adjust the editable fields to reflect what you expect the company can support in its CDP Climate response. The tool calculates current and projected scoring contribution, highlights practical scoring gates, and estimates the likely band.")
@@ -786,17 +806,6 @@ def main():
         ]
         st.dataframe(sim[calc_cols], use_container_width=True)
 
-        radar_df = sim[sim["Applicable?"].isin(["Yes", "Unclear"])].copy()
-        if not radar_df.empty:
-            radar = go.Figure()
-            theta = radar_df["Climate scoring section"].tolist()
-            radar.add_trace(go.Scatterpolar(r=radar_df["Current Section Score"].tolist(), theta=theta, fill="toself", name="Current estimated quality"))
-            radar.add_trace(go.Scatterpolar(r=radar_df["Projected Section Score"].tolist(), theta=theta, fill="toself", name="Projected after actions"))
-            # Target layer: minimum level converted to approximate maturity score
-            level_to_score = {"Disclosure": 1.5, "Awareness": 2.5, "Management": 3.5, "Leadership": 4.5}
-            radar.add_trace(go.Scatterpolar(r=radar_df["Minimum Level Needed"].map(level_to_score).fillna(3.5).tolist(), theta=theta, fill="toself", name="Practical target/gate"))
-            radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0,5])), showlegend=True, title="Climate scoring radar: current vs projected vs practical gate")
-            st.plotly_chart(radar, use_container_width=True)
 
         st.markdown("#### Priority scoring risks")
         risks = sim[(sim["Applicable?"].isin(["Yes", "Unclear"])) & ((sim["Gate / Level Gap"]) | (sim["Scoring Risk Flag"] == "High"))].copy()
